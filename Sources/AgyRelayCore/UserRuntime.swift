@@ -129,16 +129,34 @@ actor UserRuntime {
         client = nil
     }
 
-    /// Drop sessions idle longer than `maxIdle`; true when nothing is left.
-    func sweep(maxIdle: TimeInterval) async -> Bool {
-        let cutoff = Date().addingTimeInterval(-maxIdle)
+    /// Close sessions idle past `sessionIdleTimeout`; true when no session is
+    /// left and the user has been away past `userIdleTimeout`.
+    func sweep() async -> Bool {
+        let now = Date()
         for (id, conversation) in conversations {
-            if await conversation.lastActivity < cutoff, await conversation.isIdle {
+            if await conversation.isIdle,
+               await conversation.lastActivity < now.addingTimeInterval(-config.sessionIdleTimeout) {
                 conversations[id] = nil
-                await conversation.dispose(reason: "idle")
+                await conversation.dispose(reason: "idle for \(Int(config.sessionIdleTimeout))s")
             }
         }
-        return conversations.isEmpty && lastActivity < cutoff
+        return conversations.isEmpty && lastActivity < now.addingTimeInterval(-config.userIdleTimeout)
+    }
+
+    /// Close least recently used idle sessions until a new one fits under
+    /// `maxSessionsPerUser`. Busy sessions are never evicted.
+    private func makeRoom() async {
+        var idle: [(id: String, conversation: Conversation, last: Date)] = []
+        for (id, conversation) in conversations where await conversation.isIdle {
+            idle.append((id, conversation, await conversation.lastActivity))
+        }
+        idle.sort { $0.last < $1.last }
+        var excess = conversations.count + 1 - config.maxSessionsPerUser
+        for entry in idle where excess > 0 {
+            conversations[entry.id] = nil
+            await entry.conversation.dispose(reason: "evicted to stay within \(config.maxSessionsPerUser) sessions")
+            excess -= 1
+        }
     }
 
     // MARK: - Requests
@@ -166,6 +184,7 @@ actor UserRuntime {
             }
         }
 
+        await makeRoom()
         let conversation = try await open(request, setup: setup, client: client)
         let split = Transcript.trailingInputStart(request.turns)
         var prompt: [JSONValue] = []
@@ -249,6 +268,7 @@ actor UserRuntime {
             modelSlug: request.slug,
             client: client,
             server: server,
+            toolResultTimeout: config.toolResultTimeout,
             onDispose: { [weak self] id in Task { await self?.forget(id) } }
         )
         ref.value = conversation

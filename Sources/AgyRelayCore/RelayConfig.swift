@@ -20,6 +20,17 @@ public struct RelayConfig: Sendable {
     /// domains (`@example.com`). Empty allows any account whose token agy
     /// accepts.
     public var allowedUsers: Set<String>
+    /// How long a parked tool call waits for the client's tool_result before
+    /// the session is dropped.
+    public var toolResultTimeout: TimeInterval
+    /// Live ACP sessions per user. Each holds an agy worker process
+    /// (~250 MB), so the least recently used idle one is closed to make room;
+    /// its conversation replays into a new session on its next turn.
+    public var maxSessionsPerUser: Int
+    /// Idle sessions older than this are closed.
+    public var sessionIdleTimeout: TimeInterval
+    /// A user's agy front process with no sessions left is stopped after this.
+    public var userIdleTimeout: TimeInterval
 
     public init(
         host: String = "127.0.0.1",
@@ -28,7 +39,11 @@ public struct RelayConfig: Sendable {
         agyPath: String = "agy",
         dataRoot: String = FileManager.default.temporaryDirectory.appendingPathComponent("kwwk-agy-relay").path,
         systemLogin: Bool = false,
-        allowedUsers: Set<String> = []
+        allowedUsers: Set<String> = [],
+        toolResultTimeout: TimeInterval = 15 * 60,
+        maxSessionsPerUser: Int = 4,
+        sessionIdleTimeout: TimeInterval = 10 * 60,
+        userIdleTimeout: TimeInterval = 30 * 60
     ) {
         self.host = host
         self.port = port
@@ -36,6 +51,10 @@ public struct RelayConfig: Sendable {
         self.agyPath = agyPath
         self.dataRoot = dataRoot
         self.systemLogin = systemLogin
+        self.toolResultTimeout = toolResultTimeout
+        self.maxSessionsPerUser = max(1, maxSessionsPerUser)
+        self.sessionIdleTimeout = sessionIdleTimeout
+        self.userIdleTimeout = userIdleTimeout
         self.allowedUsers = Set(allowedUsers.map { $0.lowercased().trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty })
     }
 

@@ -10,9 +10,6 @@ public final class RelayService: Sendable {
     private let runtimes = NIOLockedValueBox([String: UserRuntime]())
     private let sweeper = NIOLockedValueBox<Task<Void, Never>?>(nil)
 
-    /// Sessions idle this long are closed; a user's `agy` with none left is stopped.
-    public static let maxIdle: TimeInterval = 2 * 60 * 60
-
     public init(config: RelayConfig, identity: IdentityResolver? = nil) {
         self.config = config
         self.identity = identity ?? (config.systemLogin ? SystemLoginResolver() : GoogleTokenInfoResolver())
@@ -22,7 +19,7 @@ public final class RelayService: Sendable {
         try await server.start()
         let task = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 5 * 60 * 1_000_000_000)
+                try? await Task.sleep(nanoseconds: 60 * 1_000_000_000)
                 await self?.sweep()
             }
         }
@@ -41,7 +38,7 @@ public final class RelayService: Sendable {
 
     private func sweep() async {
         let all = runtimes.withLockedValue { $0 }
-        for (user, runtime) in all where await runtime.sweep(maxIdle: Self.maxIdle) {
+        for (user, runtime) in all where await runtime.sweep() {
             await runtime.shutdown()
             runtimes.withLockedValue { $0[user] = nil }
         }

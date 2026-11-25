@@ -26,12 +26,20 @@ struct KwwkAgyRelay: AsyncParsableCommand {
     @Flag(help: "Development: skip token checks and use this machine's own signed-in agy for every caller.")
     var systemLogin = false
 
+    static func seconds(_ key: String) -> TimeInterval? {
+        ProcessInfo.processInfo.environment[key].flatMap(TimeInterval.init)
+    }
+
     func run() async throws {
         let secret = ProcessInfo.processInfo.environment["RELAY_SECRET"].flatMap { $0.isEmpty ? nil : $0 }
         let allowed = Set((ProcessInfo.processInfo.environment["RELAY_ALLOWED_USERS"] ?? "")
             .split(separator: ",").map(String.init))
         let config = RelayConfig(host: host, port: port, relaySecret: secret, agyPath: agy, dataRoot: dataRoot,
-                                 systemLogin: systemLogin, allowedUsers: allowed)
+                                 systemLogin: systemLogin, allowedUsers: allowed,
+                                 toolResultTimeout: Self.seconds("RELAY_TOOL_TIMEOUT") ?? 15 * 60,
+                                 maxSessionsPerUser: Int(ProcessInfo.processInfo.environment["RELAY_MAX_SESSIONS"] ?? "") ?? 4,
+                                 sessionIdleTimeout: Self.seconds("RELAY_SESSION_IDLE") ?? 10 * 60,
+                                 userIdleTimeout: Self.seconds("RELAY_USER_IDLE") ?? 30 * 60)
         let server = RelayServer(config: config)
         let bound = try await server.start()
         FileHandle.standardError.write(Data("kwwk-agy-relay \(RelayVersion.current) listening on \(host):\(bound)\n".utf8))

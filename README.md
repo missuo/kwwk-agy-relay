@@ -75,6 +75,10 @@ RELAY_ALLOWED_USERS=me@example.com \
 | `--agy` / `AGY_PATH` | `agy` executable |
 | `--data-root` / `RELAY_DATA_ROOT` | Per-user `agy` homes and workspaces (mode 0700, holds access tokens) |
 | `--system-login` | Development: ignore tokens and use this machine's own signed-in `agy` |
+| `RELAY_TOOL_TIMEOUT` | Seconds a parked tool call waits for the client's `tool_result` before the session is dropped (default 900) |
+| `RELAY_MAX_SESSIONS` | Live sessions per user (default 4). Each holds an `agy` worker (~250 MB); the least recently used idle one is closed to make room and its conversation replays on its next turn |
+| `RELAY_SESSION_IDLE` | Seconds before an idle session is closed (default 600) |
+| `RELAY_USER_IDLE` | Seconds before a user's `agy` with no sessions is stopped (default 1800) |
 | `RELAY_LOG=0` | Silence the one-line-per-session log on stderr (users appear as hashes) |
 
 `deploy/kwwk-agy-relay.service` is an example systemd unit.

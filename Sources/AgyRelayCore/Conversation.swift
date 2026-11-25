@@ -58,7 +58,7 @@ actor Conversation {
     private let onDispose: @Sendable (String) -> Void
 
     /// How long parked tool calls wait for the client before the session is dropped.
-    static let toolResultTimeout: TimeInterval = 15 * 60
+    private let toolResultTimeout: TimeInterval
 
     init(
         sessionId: String,
@@ -68,8 +68,10 @@ actor Conversation {
         modelSlug: String,
         client: ACPClient,
         server: MCPBridgeServer,
+        toolResultTimeout: TimeInterval = 15 * 60,
         onDispose: @escaping @Sendable (String) -> Void
     ) {
+        self.toolResultTimeout = toolResultTimeout
         self.sessionId = sessionId
         self.routeToken = routeToken
         self.setupDigest = setupDigest
@@ -275,15 +277,16 @@ actor Conversation {
         guard phase == .awaitingTools, sink != nil, !pending.isEmpty else { return }
         finishRound(stopReason: "tool_use", usage: RelayUsage())
         let parkedIds = pending.map(\.id)
+        let timeout = toolResultTimeout
         Task { [weak self] in
-            try? await Task.sleep(nanoseconds: UInt64(Self.toolResultTimeout * 1_000_000_000))
+            try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
             await self?.expireParkedCalls(parkedIds)
         }
     }
 
     private func expireParkedCalls(_ ids: [String]) {
         guard phase == .awaitingTools, pending.map(\.id) == ids else { return }
-        dispose(reason: "no tool result arrived within \(Int(Self.toolResultTimeout / 60)) minutes")
+        dispose(reason: "no tool result arrived within \(Int(toolResultTimeout))s")
     }
 
     private func finishRound(stopReason: String, usage: RelayUsage) {
