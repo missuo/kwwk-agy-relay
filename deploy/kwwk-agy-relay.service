@@ -1,0 +1,22 @@
+# Example systemd unit. Create the account first:
+#   useradd --system --create-home --home-dir /var/lib/kwwk-agy-relay kwwk-agy-relay
+#   sudo -u kwwk-agy-relay bash -c 'curl -fsSL https://antigravity.google/cli/install.sh | bash'
+# and install the binary to /usr/local/bin/kwwk-agy-relay.
+[Unit]
+Description=kwwk-agy-relay (Antigravity CLI as an Anthropic Messages endpoint)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=kwwk-agy-relay
+Environment=RELAY_ALLOWED_USERS=me@example.com
+ExecStart=/usr/local/bin/kwwk-agy-relay --host 127.0.0.1 --port 8787 \
+    --agy /var/lib/kwwk-agy-relay/.local/bin/agy --data-root /var/lib/kwwk-agy-relay/data
+Restart=on-failure
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/kwwk-agy-relay
+
+[Install]
+WantedBy=multi-user.target

@@ -6,3 +6,5 @@
 xcuserdata/
 .netrc
 .env
+/.build-linux
+/dist
