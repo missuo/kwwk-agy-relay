@@ -23,14 +23,20 @@ struct KwwkAgyRelay: AsyncParsableCommand {
     var dataRoot = ProcessInfo.processInfo.environment["RELAY_DATA_ROOT"]
         ?? FileManager.default.temporaryDirectory.appendingPathComponent("kwwk-agy-relay").path
 
+    @Flag(help: "Development: skip token checks and use this machine's own signed-in agy for every caller.")
+    var systemLogin = false
+
     func run() async throws {
         let secret = ProcessInfo.processInfo.environment["RELAY_SECRET"].flatMap { $0.isEmpty ? nil : $0 }
-        let config = RelayConfig(host: host, port: port, relaySecret: secret, agyPath: agy, dataRoot: dataRoot)
+        let allowed = Set((ProcessInfo.processInfo.environment["RELAY_ALLOWED_USERS"] ?? "")
+            .split(separator: ",").map(String.init))
+        let config = RelayConfig(host: host, port: port, relaySecret: secret, agyPath: agy, dataRoot: dataRoot,
+                                 systemLogin: systemLogin, allowedUsers: allowed)
         let server = RelayServer(config: config)
         let bound = try await server.start()
         FileHandle.standardError.write(Data("kwwk-agy-relay \(RelayVersion.current) listening on \(host):\(bound)\n".utf8))
-        if secret == nil {
-            FileHandle.standardError.write(Data("warning: RELAY_SECRET is not set; the relay accepts any caller\n".utf8))
+        if allowed.isEmpty && !systemLogin {
+            FileHandle.standardError.write(Data("warning: RELAY_ALLOWED_USERS is not set; any Google account agy accepts may use this relay\n".utf8))
         }
         try await server.wait()
     }
